@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import ReactDOM from 'react-dom';
-import { observable, action, toJS } from 'mobx';
+import { observable, action } from 'mobx';
 import { observer } from 'mobx-react';
 import MonacoEditor from 'react-monaco-editor';
 import { Rnd } from 'react-rnd';
@@ -25,9 +25,10 @@ import {
 	Link,
 } from '@material-ui/core';
 import { Storage, Clear, Computer, Build, Add, Forward } from '@material-ui/icons';
-import { Server } from './types/Server';
 import { Client } from './types/Client';
 import { Natives } from './types/Natives';
+
+import messageBus from './common/messageBus';
 
 const darkTheme = createMuiTheme({
 	palette: {
@@ -48,32 +49,37 @@ class App extends Component {
 	@observable executionMessage = 'Waiting for file to be executed...';
 
 	@observable isRenamingFile = false;
-	@observable isVisible = true;
+	@observable isVisible = process.env.NODE_ENV === 'development';
 
 	pressedEnter = false;
 	currentCode = '';
 
 	componentDidMount() {
-		alt.emit('vCode::ready');
-		alt.on('vCode::open', () => {
+		messageBus.emit('vCode::ready');
+
+		messageBus.on('vCode::open', () => {
 			this.showEditor();
-			alt.emit('vCode::open', this.isVisible);
+			messageBus.emit('vCode::open', this.isVisible);
 		});
-		alt.on('vCode::createFile', (type) => {
+
+		messageBus.on('vCode::createFile', (type) => {
 			if (!this.isVisible) return;
 			this.createNewFile(type);
 		});
-		alt.on('vCode::executeFile', () => {
+
+		messageBus.on('vCode::executeFile', () => {
 			if (!this.currentFileName) return;
 			if (!this.isVisible) return;
 			this.executeFile(this.currentFileName);
 		});
-		alt.on('vCode::deleteFile', () => {
+
+		messageBus.on('vCode::deleteFile', () => {
 			if (!this.currentFileName) return;
 			if (!this.isVisible) return;
 			this.deleteFile(this.currentFileName);
 		});
-		alt.on('vCode::renameFile', () => {
+
+		messageBus.on('vCode::renameFile', () => {
 			if (!this.currentFileName) return;
 			if (!this.isVisible) return;
 			this.renameFile(this.currentFileName);
@@ -114,32 +120,49 @@ class App extends Component {
 			target: monaco.languages.typescript.ScriptTarget.ES6,
 			allowNonTsExtensions: true,
 		});
+
+		const fileName = 'Unnamed';
+		const file = {
+			name: fileName,
+			type: 'client',
+			code: `// Start coding...\n\n`,
+			renaming: false,
+			new: false,
+		};
+
+		this.files.unshift(file);
+		this.editFile(fileName);
 	}
 
 	@action
 	executeFile(fileName) {
-		if (this.currentFileName !== fileName) this.editFile(fileName);
-		const file = this.files.find((file) => file.name === fileName);
+		if (this.currentFileName !== fileName)
+			this.editFile(fileName);
 
-		if (!file) return;
+		const file = this.files.find((file) => file.name === fileName);
+		if (!file)
+			return;
 
 		const errors = this.monaco.editor.getModelMarkers();
-
 		if (errors.length > 0) {
 			this.executionMessage = 'Code contains syntax errors...';
 			return;
 		}
 
-		alt.emit('vCode::execute', file.type, this.currentCode);
+		messageBus.emit('vCode::execute', file.type, this.currentCode);
 		this.executionMessage = `${fileName} was executed successfully!`;
+
+		setTimeout(() => this.executionMessage = 'Waiting for file to be executed...', 1000);
 	}
 
 	@action
 	editFile(fileName) {
-		if (this.currentFileName !== fileName) this.saveCurrentFile();
+		if (this.currentFileName !== fileName)
+			this.saveCurrentFile();
 
 		const index = this.files.findIndex((file) => file.name === fileName);
-		if (index < 0) return;
+		if (index < 0)
+			return;
 
 		const code = this.files[index].code;
 		const type = this.files[index].type;
@@ -180,7 +203,8 @@ class App extends Component {
 	@action
 	createNewFile(fileType) {
 		const index = this.files.findIndex((file) => file.new === true || file.renaming === true);
-		if (index > -1) this.files.splice(index, 1);
+		if (index > -1)
+			this.files.splice(index, 1);
 
 		const file = {
 			name: '',
@@ -229,7 +253,7 @@ class App extends Component {
 			}
 
 			this.files[0].name = event.target.value;
-			this.files[0].code = `// ${this.files[0].name}`;
+			this.files[0].code = `// ${this.files[0].name}\n\n`;
 			this.files[0].new = false;
 
 			this.saveCurrentFile();
@@ -237,12 +261,17 @@ class App extends Component {
 			this.currentFileName = this.files[0].name;
 			this.currentCode = this.files[0].code;
 
-			this.files[0].type === 'server'
-				? this.monaco.languages.typescript.javascriptDefaults.setExtraLibs([{ content: Server }])
-				: this.monaco.languages.typescript.javascriptDefaults.setExtraLibs([
-						{ content: Client },
-						{ content: Natives },
-				  ]);
+			// this.files[0].type === 'server'
+			// 	? this.monaco.languages.typescript.javascriptDefaults.setExtraLibs([{ content: Server }])
+			// 	: this.monaco.languages.typescript.javascriptDefaults.setExtraLibs([
+			// 			{ content: Client },
+			// 			{ content: Natives },
+			// 	  ]);
+
+			this.monaco.languages.typescript.javascriptDefaults.setExtraLibs([
+				{ content: Client },
+				{ content: Natives },
+			]);
 
 			this.editor.getModel().setValue(this.currentCode);
 			this.editor.focus();
@@ -310,12 +339,6 @@ class App extends Component {
 												<Toolbar>
 													<Button
 														startIcon={<Add />}
-														onClick={() => this.createNewFile('server')}
-													>
-														Server <strong style={{ marginLeft: 8 }}>F5</strong>
-													</Button>
-													<Button
-														startIcon={<Add />}
 														onClick={() => this.createNewFile('client')}
 													>
 														Client <strong style={{ marginLeft: 8 }}>F6</strong>
@@ -325,7 +348,7 @@ class App extends Component {
 															startIcon={<Forward />}
 															onClick={() => this.executeFile(this.currentFileName)}
 														>
-															Execute <strong style={{ marginLeft: 8 }}>F7</strong>
+															Execute <strong style={{ marginLeft: 8 }}>F5</strong>
 														</Button>
 													) : (
 														''
@@ -333,7 +356,7 @@ class App extends Component {
 													<div style={{ flexGrow: 1 }} />
 													<IconButton
 														variant='square'
-														onClick={() => alt.emit('vCode::open', false)}
+														onClick={() => messageBus.emit('vCode::open', false)}
 													>
 														<Clear />
 													</IconButton>
@@ -341,13 +364,13 @@ class App extends Component {
 											</AppBar>
 										</Grid>
 										<Grid item xs={3} className='no-drag'>
-											<List style={{ overflowY: 'scroll', height: this.height - 125 }} item>
+											<List style={{ overflowY: 'scroll', height: this.height - 125 }}>
 												{this.files.map((file) => {
 													return file.new === false && file.renaming === false ? (
 														<div
 															key={file.name}
-															onContextMenu={(e) => this.openFileContextMenu(e)}
-															onDoubleClick={(e) => this.editFile(file.name)}
+															onContextMenu={e => this.openFileContextMenu(e)}
+															onDoubleClick={() => this.editFile(file.name)}
 															style={{
 																cursor: 'context-menu',
 																userSelect: 'none',
@@ -411,7 +434,7 @@ class App extends Component {
 																<ListItemSecondaryAction>
 																	<IconButton
 																		edge='end'
-																		onClick={() => this.executeFile(file.name)}
+																		onClick={() => this.editFile(file.name)}
 																	>
 																		<Build />
 																	</IconButton>
