@@ -29,8 +29,6 @@ Download the latest release and put it in resources folder.
 | F4  | Toggles the in-game editor |
 | F5  | Executes the current file |
 | F6 | Creates a new client file  |
-| Del | Deletes the current file  |
-| ESC | Closes the in-game editor  |
 
 ## Preview
 

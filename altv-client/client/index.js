@@ -45,9 +45,7 @@ alt.on('keyup', (key) => {
     if (!loaded) return;
 
     if (key === 115) view.emit('vCode::open'); // F4
-    else if (opened && key === 27) view.emit('vCode::open'); // ESC
     else if (key === 117) view.emit('vCode::createFile', 'client'); // F6
     else if (key === 116) view.emit('vCode::executeFile'); // F5
     else if (key === 113) view.emit('vCode::renameFile'); // F2
-    else if (key === 46) view.emit('vCode::deleteFile'); // Del
 });
