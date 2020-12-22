@@ -2,6 +2,7 @@
 /// <reference path="../../../node_modules/@altv/types-natives/index.d.ts" />
 
 import alt from 'alt-client';
+import * as natives from 'natives';
 
 let loaded = false;
 let opened = false;
@@ -38,7 +39,8 @@ function openEditor(active) {
         currentMouseState = active;
     }
 
-    if (active) view.focus();
+    active ? view.focus() : view.unfocus();
+    
 }
 
 alt.on('keyup', (key) => {
